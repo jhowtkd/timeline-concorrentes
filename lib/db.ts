@@ -1,8 +1,19 @@
 import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
+import { mkdirSync, existsSync } from 'fs';
+import { dirname } from 'path';
 import { Board, Column, Post, ClawdBotPayload } from './types';
 
-const db = new Database('./data/dashboard.db');
+// Suporta Render (/data) e local (./data)
+const DB_PATH = process.env.DATABASE_PATH || './data/dashboard.db';
+
+// Garantir que o diretório existe
+const dbDir = dirname(DB_PATH);
+if (!existsSync(dbDir)) {
+  mkdirSync(dbDir, { recursive: true });
+}
+
+const db = new Database(DB_PATH);
 
 // Initialize database schema
 db.exec(`

@@ -1,0 +1,26 @@
+services:
+  # Serviço Web (Next.js)
+  - type: web
+    name: timeline-concorrentes
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLAUDBOT_API_KEY
+        generateValue: true
+      - key: APIFY_TOKEN
+        sync: false
+      - key: APIFY_ACTOR_ID
+        value: apify/instagram-scraper
+      - key: INGEST_API_URL
+        value: /api/ingest
+      - key: DATABASE_PATH
+        value: /data/database.db
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    healthCheckPath: /api/ingest
