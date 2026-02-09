@@ -32,6 +32,7 @@ db.exec(`
     board_id TEXT REFERENCES boards(id) ON DELETE CASCADE,
     source_type TEXT NOT NULL,
     display_name TEXT NOT NULL,
+    handle TEXT, -- @username do perfil (Instagram, TikTok, etc)
     position INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT 1,
     UNIQUE(board_id, source_type)
@@ -60,6 +61,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_posts_column ON posts(column_id);
   CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(published_at);
 `);
+
+// Migration: Add handle column if not exists
+try {
+  db.exec(`ALTER TABLE columns ADD COLUMN handle TEXT`);
+} catch (e) {
+  // Column already exists
+}
 
 // Helper to generate slugs
 function generateSlug(name: string): string {
@@ -135,25 +143,28 @@ export function createColumn(
   boardId: string, 
   sourceType: string, 
   displayName: string, 
-  position: number = 0
+  position: number = 0,
+  handle: string | null = null
 ): Column {
   const id = uuidv4();
   
   const stmt = db.prepare(`
-    INSERT INTO columns (id, board_id, source_type, display_name, position)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO columns (id, board_id, source_type, display_name, handle, position)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(board_id, source_type) DO UPDATE SET
       display_name = excluded.display_name,
+      handle = COALESCE(excluded.handle, columns.handle),
       position = excluded.position
   `);
   
-  stmt.run(id, boardId, sourceType, displayName, position);
+  stmt.run(id, boardId, sourceType, displayName, handle, position);
   
   return {
     id,
     boardId,
     sourceType: sourceType as any,
     displayName,
+    handle,
     position,
     isActive: true,
     posts: [],
@@ -175,6 +186,20 @@ export function getColumnsByBoard(boardId: string): Column[] {
 
 export function toggleColumn(columnId: string, isActive: boolean): void {
   db.prepare('UPDATE columns SET is_active = ? WHERE id = ?').run(isActive ? 1 : 0, columnId);
+}
+
+export function updateColumnHandle(columnId: string, handle: string | null): void {
+  db.prepare('UPDATE columns SET handle = ? WHERE id = ?').run(handle, columnId);
+}
+
+export function getColumnById(columnId: string): Column | null {
+  const col = db.prepare('SELECT * FROM columns WHERE id = ?').get(columnId) as any;
+  if (!col) return null;
+  
+  return {
+    ...col,
+    posts: getPostsByColumn(col.id),
+  };
 }
 
 // Post operations

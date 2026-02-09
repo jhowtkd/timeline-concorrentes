@@ -8,10 +8,6 @@ on:
   # Manual trigger (para testes)
   workflow_dispatch:
     inputs:
-      target:
-        description: 'Concorrente específico (deixe vazio para todos)'
-        required: false
-        default: ''
       limit:
         description: 'Número de posts por perfil'
         required: false
@@ -21,18 +17,6 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     
-    strategy:
-      matrix:
-        # Lista de concorrentes para monitorar
-        competitor: 
-          - nike
-          - adidas
-          - puma
-          # Adicione mais concorrentes aqui
-      
-      # Roda em sequência (não paralelo) para não sobrecarregar
-      max-parallel: 1
-    
     steps:
       - name: 📥 Checkout do código
         uses: actions/checkout@v4
@@ -41,36 +25,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # Cache desabilitado para evitar problemas de path
       
       - name: 📦 Instalar dependências
         run: npm ci
       
-      - name: 🕐 Aguardar entre execuções
-        if: matrix.competitor != 'nike'
-        run: sleep 30
-      
-      - name: 🚀 Executar Scrape
-        run: |
-          if [ -n "${{ github.event.inputs.target }}" ]; then
-            # Se especificou um target manualmente
-            npx tsx scripts/scrape-instagram.ts "${{ github.event.inputs.target }}" --limit ${{ github.event.inputs.limit }} --verbose
-          else
-            # Scrape do concorrente da matrix
-            npx tsx scripts/scrape-instagram.ts ${{ matrix.competitor }} --limit 50 --verbose
-          fi
+      - name: 🚀 Executar Scrape (Baseado no Banco)
+        run: npx tsx scripts/scrape-from-db.ts ${{ github.event.inputs.limit || '50' }}
         env:
           APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
           CLAUDBOT_API_KEY: ${{ secrets.CLAUBOT_API_KEY }}
           APIFY_ACTOR_ID: apify/instagram-scraper
-          INGEST_API_URL: ${{ secrets.INGEST_API_URL || 'https://seu-dominio.com/api/ingest' }}
+          INGEST_API_URL: ${{ secrets.INGEST_API_URL }}
         continue-on-error: true
       
       - name: 📊 Upload de logs (em caso de falha)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: scrape-logs-${{ matrix.competitor }}-${{ github.run_id }}
+          name: scrape-logs-${{ github.run_id }}
           path: logs/
           if-no-files-found: ignore
 

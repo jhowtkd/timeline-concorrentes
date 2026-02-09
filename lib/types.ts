@@ -22,6 +22,7 @@ export interface Column {
   boardId: string;
   sourceType: 'instagram' | 'linkedin' | 'youtube' | 'tiktok' | 'rss' | 'meta-ads';
   displayName: string;
+  handle: string | null; // @username do Instagram/TikTok/etc
   position: number;
   isActive: boolean;
   posts: Post[];
