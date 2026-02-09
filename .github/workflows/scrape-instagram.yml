@@ -1,0 +1,92 @@
+name: 📸 Instagram Scraper - Concorrentes
+
+on:
+  # Agendado: todo dia às 9h UTC (6h BRT)
+  schedule:
+    - cron: '0 9 * * *'
+  
+  # Manual trigger (para testes)
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Concorrente específico (deixe vazio para todos)'
+        required: false
+        default: ''
+      limit:
+        description: 'Número de posts por perfil'
+        required: false
+        default: '50'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        # Lista de concorrentes para monitorar
+        competitor: 
+          - nike
+          - adidas
+          - puma
+          # Adicione mais concorrentes aqui
+      
+      # Roda em sequência (não paralelo) para não sobrecarregar
+      max-parallel: 1
+    
+    steps:
+      - name: 📥 Checkout do código
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: my-app/package-lock.json
+      
+      - name: 📦 Instalar dependências
+        working-directory: my-app
+        run: npm ci
+      
+      - name: 🕐 Aguardar entre execuções
+        if: matrix.competitor != 'nike'
+        run: sleep 30
+      
+      - name: 🚀 Executar Scrape
+        working-directory: my-app
+        run: |
+          if [ -n "${{ github.event.inputs.target }}" ]; then
+            # Se especificou um target manualmente
+            npx tsx scripts/scrape-instagram.ts "${{ github.event.inputs.target }}" --limit ${{ github.event.inputs.limit }} --verbose
+          else
+            # Scrape do concorrente da matrix
+            npx tsx scripts/scrape-instagram.ts ${{ matrix.competitor }} --limit 50 --verbose
+          fi
+        env:
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          CLAUDBOT_API_KEY: ${{ secrets.CLAUBOT_API_KEY }}
+          APIFY_ACTOR_ID: apify/instagram-scraper
+          INGEST_API_URL: ${{ secrets.INGEST_API_URL || 'https://seu-dominio.com/api/ingest' }}
+        continue-on-error: true
+      
+      - name: 📊 Upload de logs (em caso de falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-logs-${{ matrix.competitor }}-${{ github.run_id }}
+          path: my-app/logs/
+          if-no-files-found: ignore
+
+  notify:
+    needs: scrape
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: ✅ Notificar sucesso
+        if: needs.scrape.result == 'success'
+        run: echo "🎉 Scrapes concluídos com sucesso!"
+      
+      - name: ⚠️ Notificar falhas parciais
+        if: needs.scrape.result == 'failure'
+        run: echo "⚠️ Alguns scrapes falharam. Verifique os logs."

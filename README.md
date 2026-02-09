@@ -1,36 +1,132 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Competitor Timeline Dashboard
 
-## Getting Started
+Dashboard estilo TweetDeck para acompanhar concorrentes em múltiplas redes sociais.
 
-First, run the development server:
+## 🚀 Arquitetura
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│  ClawdBot   │──────▶│   API       │──────▶│   SQLite    │
+│  (Scraper)  │ POST  │  /ingest    │       │   (Dados)   │
+└─────────────┘      └─────────────┘      └─────────────┘
+                            │
+                            ▼
+                     ┌─────────────┐
+                     │  Next.js    │
+                     │  Dashboard  │
+                     └─────────────┘
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 📋 Funcionalidades
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Boards**: Crie um board para cada concorrente
+- **Colunas**: Cada board tem colunas para Instagram, LinkedIn, YouTube, TikTok
+- **Posts**: Visualize posts em cards clicáveis (vai pro conteúdo original)
+- **Atualização**: Dados atualizados 1x ao dia via ClawdBot
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🛠️ Setup
 
-## Learn More
+```bash
+# Instalar dependências
+npm install
 
-To learn more about Next.js, take a look at the following resources:
+# Gerar API key (já criado em .env.local)
+cat .env.local
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Rodar em desenvolvimento
+npm run dev
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Build para produção
+npm run build
+npm start
+```
 
-## Deploy on Vercel
+## 🔌 API Endpoints
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### POST /api/ingest
+Recebe dados do ClawdBot.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Headers:**
+```
+Authorization: Bearer {CLAUDBOT_API_KEY}
+X-Batch-Id: uuid-unico
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "batchId": "uuid-unico",
+  "scrapedAt": "2026-02-06T06:00:00Z",
+  "source": {
+    "platform": "instagram",
+    "handle": "liberdademedicaedu",
+    "url": "https://instagram.com/liberdademedicaedu"
+  },
+  "posts": [
+    {
+      "id": "post-id",
+      "url": "https://instagram.com/p/ABC123",
+      "content": "Texto do post...",
+      "mediaType": "carousel",
+      "publishedAt": "2026-02-05T14:30:00Z",
+      "engagement": {
+        "likes": 15420,
+        "comments": 342,
+        "shares": 89
+      },
+      "hashtags": ["medicina"],
+      "mentions": ["@medico"]
+    }
+  ]
+}
+```
+
+### POST /api/ingest/force
+Força atualização manual (para testes).
+
+```json
+{
+  "target": "instagram.com/liberdademedicaedu",
+  "depth": 20
+}
+```
+
+## 🗄️ Estrutura do Banco
+
+- **boards**: Concorrentes monitorados
+- **columns**: Fontes de cada board (IG, LI, YT, TT)
+- **posts**: Posts coletados
+
+## 🔐 Segurança
+
+- Rate limit: 1 request/minuto
+- API Key obrigatória
+- Idempotência via X-Batch-Id
+
+## 📝 Configuração ClawdBot
+
+1. Frequência: Diário às 6h BRT
+2. Posts: Últimos 20 por fonte
+3. Erro: Pula e continua (não quebra o fluxo)
+4. Rotação de IP + Headers realistas
+
+## 🧪 Teste Local
+
+```bash
+# Gerar JSON de teste
+curl -X POST http://localhost:3000/api/ingest \
+  -H "Authorization: Bearer $(cat .env.local | cut -d= -f2)" \
+  -H "Content-Type: application/json" \
+  -H "X-Batch-Id: test-001" \
+  -d '{
+    "batchId": "test-001",
+    "scrapedAt": "2026-02-06T06:00:00Z",
+    "source": {
+      "platform": "instagram",
+      "handle": "test",
+      "url": "https://instagram.com/test"
+    },
+    "posts": []
+  }'
+```
